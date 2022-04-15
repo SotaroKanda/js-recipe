@@ -1,0 +1,22 @@
+<title>カウンター</title>
+<meta charset="utf-8">
+<script>
+
+let click = 0;
+function a() {
+click++;
+document.getElementById('click_html').innerHTML = click ;
+}
+function b() {
+click--;
+document.getElementById('click_html').innerHTML = click ;
+}
+function c() {
+click=click*2;
+document.getElementById('click_html').innerHTML = click ;
+}
+</script>
+<div id="click_html"></div>
+<button onclick="a()">+1</button><br>
+<button onclick="b()">-1</button><br>
+<button onclick="c()">×2</button>

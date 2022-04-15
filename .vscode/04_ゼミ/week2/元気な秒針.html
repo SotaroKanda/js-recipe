@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>元気な秒針</title>
+  </head>
+
+  <body>
+    <script>
+
+
+const display = document.getElementById("display")
+const button = document.getElementById("button")
+
+let count = 0
+
+const countUp = function(){
+    count += 1
+    display.textContent = count/100
+}
+
+let id = null
+
+button.onclick = function(){
+    if (id === null) { // start
+        id = setInterval(countUp, 10)
+        button.textContent = "stop"
+    } else { // stop
+        clearInterval(id)
+        id = null
+        button.textContent = "start"
+    }
+}    
+    </script>
+  </body>
+</html>
