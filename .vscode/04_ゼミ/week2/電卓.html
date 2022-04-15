@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang='ja'>
+<head>
+    <meta name='viewport' content='user-scalable=no,width=device-width,initial-scale=1'>
+    <meta charset='utf-8'>
+    <title>Calculator</title>
+    <style>
+        html {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+        }
+        .f {
+            width: 100%;
+            max-width: 380px;
+            min-width: 280px;
+        }
+        .l {
+            width: 100%;
+            display: flex;
+        }
+        input#v {
+            width: 100%;
+            font-size: 30px;
+            text-align: right;
+            margin-right: 2px;
+            padding: 12px 6px 0 6px;
+        }
+        input[type='button'] {
+            border:1px gray solid;
+            width: 80px;
+            height: 60px;
+            font-size: 25px;
+            margin-top: 12px;
+            margin-right: 2px;
+            padding: 0px;
+            line-height: 0px;
+            border-radius: 4px;
+            -webkit-appearance: none;
+            -webkit-user-select: none;
+            cursor: pointer;
+        }
+        span#vs {
+            position: absolute;
+            color: #000;
+            border-right: 1px #ccc solid;
+            border-bottom: 1px #ccc solid;
+            margin: 4px;
+            font-size: 12px;
+            padding: 0 4px 0 4px;
+            line-height: 120%;
+            border-radius: 0px;
+            font-family: sans-serif;
+            font-weight: bold;
+            display: none;
+        }
+        .r {
+            background: #555;
+            color: #ddd;
+        }
+        .c {
+            background: #a44;
+            color: #ddd;
+        }
+        #dummy {
+            position: fixed;
+            top: -100px;
+        }
+    </style>
+</head>
+<body>
+    <div class='f'>
+        <div class='l'>
+            <input type='text' id='v' value='0' readonly>
+            <span id='vs'></span>
+        </div>
+        <div class='l'>
+            <input type='button' value='＋/－' id='signRev' class='r'>
+            <input type='button' value='7'     id='k7'>
+            <input type='button' value='8'     id='k8'>
+            <input type='button' value='9'     id='k9'>
+            <input type='button' value='÷'    id='divide' class='r'>
+        </div>
+        <div class='l'>
+            <input type='button' value='➤' id='back' class='r'>
+            <input type='button' value='4'  id='k4'>
+            <input type='button' value='5'  id='k5'>
+            <input type='button' value='6'  id='k6'>
+            <input type='button' value='×' id='multiply' class='r'>
+        </div>
+        <div class='l'>
+            <input type='button' value='C'  id='clear' class='c'>
+            <input type='button' value='1'  id='k1'>
+            <input type='button' value='2'  id='k2'>
+            <input type='button' value='3'  id='k3'>
+            <input type='button' value='－' id='subtraction' class='r'>
+        </div>
+        <div class='l'>
+            <input type='button' value='AC' id='allClear' class='c'>
+            <input type='button' value='0'  id='k0'>
+            <input type='button' value='.'  id='kp'>
+            <input type='button' value='＝' id='equal' class='r'>
+            <input type='button' value='＋' id='addition' class='r'>
+        </div>
+        <input type='text' id='dummy'>
+    </div>
+    <script>
+        'use strict';
+
+        window.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+
+        let register = [0],
+            numBuf = '',
+            as = 0,
+            md = 0,
+            error = 0,
+            lId,
+            k = 0,
+            kReg = 0;
+
+        const
+            c = (function() {
+                return {
+                    l: function(n) {
+                        const s = String(parseFloat(n));
+                        let m = [];
+                        if(m = s.match(/^-?\d+\.?(\d+)?e-(\d+).*$/)) {
+                            return Number(m[2]) + (m[1] === undefined ? 0 : m[1].length);
+                        }
+                        return /e/.test(s) ? 0 : s.replace(/^[^.]+\.?/, '').length;
+                    },
+                    add: function(a, b) {
+                        const d = Math.max(this.l(a), this.l(b));
+                        return parseFloat((a + b).toFixed(d));
+                    },
+                    sub: function (a, b) {
+                        const d = Math.max(this.l(a), this.l(b));
+                        return parseFloat((a - b).toFixed(d));
+                    },
+                    mul: function (a, b) {
+                        const d = this.l(a) + this.l(b);
+                        return parseFloat((a * b).toFixed(d));
+                    },
+                    div: function (a, b) {
+                        const d = Math.max(this.l(a), this.l(b));
+                        return Math.round(a * Math.pow(10, d)) / Math.round(b * Math.pow(10, d));
+                    },
+                };
+            }()),
+            keyId = {
+                '0': 'k0', '1': 'k1', '2': 'k2', '3': 'k3', '4': 'k4',
+                '5': 'k5', '6': 'k6', '7': 'k7', '8': 'k8', '9': 'k9',
+                '.': 'kp', 'decimal': 'kp',
+                '=': 'equal', 'enter': 'equal', ' ': 'equal', 'spacebar': 'equal',
+                '+': 'addition', 'add': 'addition',
+                '-': 'subtraction', 'subtract': 'subtraction',
+                '*': 'multiply', 'multiply': 'multiply',
+                '/': 'divide', 'divide': 'divide',
+                'r': 'signRev', 'c': 'clear',
+                'backspace': 'back', 'left': 'back', 'right': 'back',
+                'arrowleft': 'back', 'arrowright': 'back',
+                'a': 'allClear', 'escape': 'allClear', 'esc': 'allClear',
+            },
+            touchFlg = window.ontouchstart !== undefined ? true : false,
+            clickEventType = touchFlg ? 'touchstart' : 'mousedown';
+
+        const elements = document.querySelectorAll('input[type="button"]');
+        // マウスイベント
+        for(let i in elements) {
+            if(elements[i].id !== undefined) {
+                elements[i].addEventListener(clickEventType, function() {
+                    keyClick(this.id);
+                });
+            }
+        }
+
+        // キーイベント
+        window.addEventListener('keydown', function(e) {
+            if(!touchFlg) document.getElementById('dummy').focus();
+            const key = e.key.toLowerCase();
+            if(keyId[key] !== undefined) keyClick(keyId[key]);
+        });
+
+        // キー入力
+        function keyClick(id) {
+            // AC
+            if(id === 'allClear')   allClear();
+
+            // errorの場合は以降のキー操作無効
+            if(error)                return;
+
+            let n;
+            if((n = id.match(/^k(\d)$/)) !== null)
+                                            numberKey(n[1]);
+            else if(id === 'kp')            decimalPoint();
+
+            else if(id === 'addition')      addition();
+            else if(id === 'subtraction')   subtraction();
+            else if(id === 'multiply')      multiply();
+            else if(id === 'divide')        divide();
+
+            else if(id === 'equal')         equal();
+
+            else if(id === 'signRev')       signReverse();
+            else if(id === 'back')          back();
+            else if(id === 'clear')         clear();
+
+            keyBlink(id);
+            vsPrint();
+        }
+
+        // 数値入力
+        function numberKey(n) {
+            numBuf += String(n);
+            numBuf = numBuf.replace(/^(\-)?0+(\d)/, "$1$2");
+            p(numBuf);
+
+            if(k) register[0] = parseFloat(numBuf);
+            else  register[register.length - 1] = parseFloat(numBuf);
+        }
+
+        // 小数点
+        function decimalPoint() {
+            if(numBuf === '') {
+                numBuf = '0.';
+            }
+            else if(numBuf.indexOf('.') === -1) {
+                numBuf += '.';
+            }
+            p(numBuf);
+                if(k) register[0] = parseFloat(numBuf);
+                else  register[register.length - 1] = parseFloat(numBuf);
+        }
+
+        // +
+        function addition() {
+            if((as || md) && numBuf === '') {
+                if(k !== 0) k = 0;
+                else if(as === 1 && k !== 1) {
+                    k = 1;
+                    register = [register[0]];
+                    kReg = register[0];
+                    return;
+                }
+                md = 0;
+                as = 1;
+                return;
+            }
+            calc();
+            as = 1;
+            register.push(0);
+            numBuf = '';
+        }
+
+        // -
+        function subtraction() {
+            if((as || md) && numBuf === '') {
+                if(k !== 0) k = 0;
+                else if(as === 2 && k !== 2) {
+                    k = 2;
+                    register = [register[0]];
+                    kReg = register[0];
+                    return;
+                }
+                md = 0;
+                as = 2;
+                return;
+            }
+            calc();
+            as = 2;
+            register.push(0);
+            numBuf = '';
+        }
+
+        // ×
+        function multiply() {
+            if((as || md) && numBuf === '') {
+                if(k !== 0) k = 0;
+                else if(md === 1 && k !== 3) {
+                    k = 3;
+                    register = [register[0]];
+                    kReg = register[0];
+                    return;
+                }
+                as = 0;
+                md = 1;
+                return;
+            }
+            if(as) {
+                calc(1);
+            }
+            else {
+                calc();
+            }
+            md = 1;
+            register.push(0);
+            numBuf = '';
+        }
+
+        // ÷
+        function divide() {
+            if((as || md) && numBuf === '') {
+                if(k !== 0) k = 0;
+                else if(md === 2 && k !== 4) {
+                    k = 4;
+                    register = [register[0]];
+                    kReg = register[0];
+                    return;
+                }
+                as = 0;
+                md = 2;
+                return;
+            }
+            if(as) {
+                calc(1);
+            }
+            else {
+                calc();
+            }
+            md = 2;
+            register.push(0);
+            numBuf = '';
+        }
+
+        // =
+        function equal() {
+            if(k !== 0) {
+                calc();
+            }
+            else {
+                if(lId) {
+                    document.getElementById(lId).style.opacity = '';
+                }
+                if(md && numBuf === '') {
+                    register[register.length - 1] = register[register.length - 2];
+                    calc(1);
+                }
+                calc();
+                as = 0;
+                md = 0;
+            }
+            if(isNaN(register[0]) || register[0] === Infinity) {
+                error = 1;
+                p('ERROR');
+                return;
+            }
+            p(register[0], 1);
+            numBuf = '';
+        }
+
+        // 符号反転
+        function signReverse() {
+            if(numBuf !== '' && parseFloat(numBuf) !== 0) {
+                numBuf = numBuf[0] === '-' ?
+                    numBuf.slice(1) : '-' + numBuf;
+                p(numBuf);
+                register[register.length - 1] = parseFloat(numBuf);
+            }
+            else if(numBuf === '' && register[register.length - 1] !== 0) {
+                register[register.length - 1] = -register[register.length - 1];
+                p(register[register.length - 1]);
+            }
+            else if(numBuf === '' || parseFloat(numBuf) === 0) {
+                numBuf = (numBuf !== '' && numBuf[0] === '-') ?
+                    numBuf.slice(1) :
+                    '-' + (numBuf === '' ? '0' : numBuf);
+                p(numBuf);
+            }
+        }
+
+        // 1文字削除
+        function back() {
+            if(numBuf === '') return;
+
+            numBuf = numBuf.slice(0, -1);
+            if(numBuf === '' || numBuf === '-') numBuf = '0';
+
+            if(numBuf.slice(-1) === '.') {
+                numBuf = numBuf.slice(0, -1);
+            }
+            p(numBuf);
+            register[register.length - 1] = parseFloat(numBuf === '' ? 0 : numBuf);
+        }
+
+        // クリア
+        function clear() {
+            register[register.length - 1] = 0;
+            numBuf = '';
+            p(0);
+        }
+
+        // オールクリア
+        function allClear() {
+            if(lId) {
+                document.getElementById(lId).style.opacity = '';
+            }
+            error = 0;
+            numBuf = '';
+            register = [0];
+            p(0);
+            as = 0;
+            md = 0;
+            k = 0;
+            kReg = 0;
+        }
+
+        // 表示
+        function p(str, f) {
+            str = String(str);
+
+            if(str === '') return;
+            if(f === undefined) f = 0;
+
+            if(/-0\.0*$/.test(str)) {
+                v.value = str;
+                return v.value;
+            }
+
+            v.value = displayView(str, 20);
+            return v.value;
+        }
+
+        // 表示桁数に収まる表記に変換
+        function displayView(s, n) {
+            if(n === undefined || n < 1) n = 16;
+            if(String(s).length <= n) return String(s);
+            if(typeof s === 'string') s = parseFloat(s);
+            const f = Math.abs(s < 0.001) ? 1 : 0;
+            for(let i = n; i > 0; i--) {
+                const p = f ?
+                    s.toExponential(i) :
+                    s.toPrecision(i)
+                        .replace(/(\.\d*?)0+$/, "$1")
+                        .replace(/\.$/, '')
+                        .replace(/\.?0+(e)/i, "$1");
+                if(p.length <= n) return p;
+            }
+            return undefined;
+        }
+
+        function vsPrint() {
+            if(k) {
+                vs.style.display = 'block';
+                vs.textContent = ['+','-','×','÷'][k - 1] + ' ' + kReg; 
+            }
+            else {
+                vs.style.display = 'none';
+            }
+        }
+
+        // 計算
+        function calc(m) {
+            let l = register.length;
+            if(k === 0 && l < 2) return;
+
+            if(k !== 0) {
+                if(k === 1)
+                    register[0] = c.add(register[0], kReg);
+                else if(k === 2)
+                    register[0] = c.sub(register[0], kReg);
+                else if(k === 3)
+                    register[0] = c.mul(register[0], kReg);
+                else if(k === 4)
+                    register[0] = c.div(register[0], kReg);
+                return;
+            }
+
+            if(m !== 1) {
+                if(md && k === 0) {
+                    calc(1);
+                    l--;
+                }
+
+                // +
+                if(as === 1) {
+                    register[l - 2] = c.add(register[l - 2], register.pop());
+                }
+                // -
+                else if(as === 2) {
+                    register[l - 2] = c.sub(register[l - 2], register.pop());
+                }
+                if(register[l - 2] !== undefined) p(register[l - 2]);
+                as = 0;
+            }
+            else {
+                // ×
+                if(md === 1) {
+                    register[l - 2] = c.mul(register[l - 2], register.pop());
+                }
+                // ÷
+                else if(md === 2) {
+                    register[l - 2] = c.div(register[l - 2], register.pop());
+                }
+                p(register[register.length - 1]);
+                md = 0;
+            }
+        }
+
+        // キー点滅
+        function keyBlink(id) {
+            const d = document.getElementById(id);
+            if(d === null) return;
+            const dataKey = 'data-bg-buf';
+            if(d.getAttribute(dataKey) !== null) return;
+            d.setAttribute(dataKey, d.style.background);
+            d.style.background = '#fd4';
+            if(['addition', 'subtraction', 'multiply', 'divide'].indexOf(id) !== -1) {
+                if(lId) {
+                    document.getElementById(lId).style.opacity = '';
+                }
+                d.style.opacity = '0.5';
+                lId = id;
+            }
+            setTimeout(function() {
+                d.style.background = d.getAttribute(dataKey);
+                d.removeAttribute(dataKey);
+            }, 80);
+        }
+    </script>
+</body>
+</html>
