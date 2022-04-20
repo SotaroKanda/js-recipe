@@ -4,4 +4,3 @@ figure.onclick = function() {
   figure.classList.toggle("rounded")
 }
 
-
